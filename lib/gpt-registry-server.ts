@@ -4,14 +4,22 @@ import type { GPTConfig } from "@/lib/gpt-registry"
 export async function getGPTConfigServer(gptId: string): Promise<GPTConfig | null> {
   try {
     console.log("[v0] Loading GPT config from database (server) for:", gptId)
-    const supabase = await createClient()
+
+    let supabase
+    try {
+      supabase = await createClient()
+      console.log("[v0] Server Supabase client created successfully")
+    } catch (clientError) {
+      console.error("[v0] Failed to create server Supabase client:", clientError)
+      return createFallbackConfig(gptId)
+    }
 
     console.log("[v0] Querying gpt_configs table...")
 
-    let query = supabase.from("gpt_configs").select("*")
-
     // Check if gptId looks like a UUID (contains hyphens and is 36 chars)
     const isUUID = gptId.includes("-") && gptId.length === 36
+
+    let query = supabase.from("gpt_configs").select("*")
 
     if (isUUID) {
       console.log("[v0] Querying by ID (UUID):", gptId)
@@ -21,30 +29,39 @@ export async function getGPTConfigServer(gptId: string): Promise<GPTConfig | nul
       query = query.eq("name", gptId)
     }
 
-    const { data, error } = await query.maybeSingle()
+    const { data, error } = await query.single()
 
-    console.log("[v0] Database query result:", { data: data ? "found" : "not found", error: error?.message })
+    console.log("[v0] Database query result:", {
+      data: data ? "found" : "not found",
+      error: error?.message,
+      errorCode: error?.code,
+    })
 
     if (error) {
       console.error("[v0] Database error:", error.message)
-      if (error.message?.includes("Cannot coerce")) {
+
+      if (error.code === "PGRST116") {
         console.log("[v0] Multiple results found, trying to get first result")
-        const { data: multiData, error: multiError } = await query.limit(1)
-        if (!multiError && multiData && multiData.length > 0) {
-          const firstResult = multiData[0]
+        const { data: multiData, error: multiError } = await query.limit(1).single()
+        if (!multiError && multiData) {
           console.log("[v0] Using first result from multiple matches")
           return {
-            id: firstResult.id,
-            name: firstResult.name,
-            task_description: firstResult.task_description,
-            system_prompt: firstResult.system_prompt,
-            starter_message: firstResult.starter_message,
-            max_tries: firstResult.max_tries,
-            ui_type: firstResult.ui_type,
-            created_at: firstResult.created_at,
-            updated_at: firstResult.updated_at,
+            id: multiData.id,
+            name: multiData.name,
+            task_description: multiData.task_description,
+            system_prompt: multiData.system_prompt,
+            starter_message: multiData.starter_message,
+            max_tries: multiData.max_tries,
+            ui_type: multiData.ui_type,
+            created_at: multiData.created_at,
+            updated_at: multiData.updated_at,
           }
         }
+      }
+
+      if (error.code === "PGRST116" || error.message?.includes("No rows")) {
+        console.log("[v0] No data found for gptId:", gptId, "creating fallback config")
+        return createFallbackConfig(gptId)
       }
 
       // If table doesn't exist, create default config
@@ -52,13 +69,13 @@ export async function getGPTConfigServer(gptId: string): Promise<GPTConfig | nul
         console.log("[v0] Table doesn't exist, returning fallback config")
         return createFallbackConfig(gptId)
       }
+
       console.log("[v0] Config loaded: FAILED")
-      return null
+      return createFallbackConfig(gptId)
     }
 
     if (!data) {
       console.log("[v0] No data found for gptId:", gptId, "creating fallback config")
-      console.log("[v0] Config loaded: FAILED")
       return createFallbackConfig(gptId)
     }
 
@@ -74,13 +91,12 @@ export async function getGPTConfigServer(gptId: string): Promise<GPTConfig | nul
       updated_at: data.updated_at,
     }
 
-    console.log("[v0] Successfully loaded GPT config:", gptId)
+    console.log("[v0] Successfully loaded GPT config:", config.name)
     console.log("[v0] Config loaded: SUCCESS")
     return config
   } catch (error) {
     console.error("[v0] Error loading GPT config:", error)
     console.log("[v0] Creating fallback config for:", gptId)
-    console.log("[v0] Config loaded: FAILED")
     return createFallbackConfig(gptId)
   }
 }
