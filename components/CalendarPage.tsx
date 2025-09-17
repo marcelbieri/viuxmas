@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Snowflake } from "./Snowflake"
 import { DoorModal } from "./DoorModal"
@@ -17,7 +17,7 @@ export function CalendarPage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedDoor, setSelectedDoor] = useState<CalendarDoor | null>(null)
 
-  const doorSlug = searchParams.get("door")
+  const doorSlug = useMemo(() => searchParams.get("door"), [searchParams])
 
   useEffect(() => {
     const handlePopState = () => {
