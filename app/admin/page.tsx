@@ -399,7 +399,7 @@ export default function AdminPage() {
             {showGptForm && (
               <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">
+                  <h3 className="text-xl font-bold text-[#001327] mb-4">
                     {editingGpt ? "GPT bearbeiten" : "Neues GPT erstellen"}
                   </h3>
 
@@ -419,49 +419,49 @@ export default function AdminPage() {
                     className="space-y-4"
                   >
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">GPT Name</label>
+                      <label className="block text-sm font-medium text-[#001327] mb-1">GPT Name</label>
                       <input
                         name="name"
                         type="text"
                         defaultValue={editingGpt?.name || ""}
                         disabled={!!editingGpt}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-[#001327]"
                         placeholder="z.B. xmas-smiley"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Aufgabe/Beschreibung</label>
+                      <label className="block text-sm font-medium text-[#001327] mb-1">Aufgabe/Beschreibung</label>
                       <input
                         name="task_description"
                         type="text"
                         defaultValue={editingGpt?.task_description || ""}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-[#001327]"
                         placeholder="z.B. Weihnachts-Song Emoji-Rätsel"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Starter Message</label>
+                      <label className="block text-sm font-medium text-[#001327] mb-1">Starter Message</label>
                       <input
                         name="starter_message"
                         type="text"
                         defaultValue={editingGpt?.starter_message || ""}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-[#001327]"
                         placeholder="Welchen Song suchen wir? 🎄🔔🎵"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">System Prompt</label>
+                      <label className="block text-sm font-medium text-[#001327] mb-1">System Prompt</label>
                       <textarea
                         name="system_prompt"
                         rows={8}
                         defaultValue={editingGpt?.system_prompt || ""}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-[#001327]"
                         placeholder="Du bist ein freundlicher Assistent..."
                         required
                       />
@@ -469,24 +469,24 @@ export default function AdminPage() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Max Versuche</label>
+                        <label className="block text-sm font-medium text-[#001327] mb-1">Max Versuche</label>
                         <input
                           name="max_tries"
                           type="number"
                           min="1"
                           max="10"
                           defaultValue={editingGpt?.max_tries || 3}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-[#001327]"
                           required
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">UI Typ</label>
+                        <label className="block text-sm font-medium text-[#001327] mb-1">UI Typ</label>
                         <select
                           name="ui_type"
                           defaultValue={editingGpt?.ui_type || "chat"}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-[#001327]"
                           required
                         >
                           <option value="chat">Chat</option>
