@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client"
+import { createClient as createServerClient } from "@/lib/supabase/server"
 
 export interface GPTConfig {
   id: string
@@ -17,7 +18,7 @@ let gptConfigsCache: Record<string, GPTConfig> = {}
 let cacheTimestamp = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
-export async function getGPTConfig(gptId: string): Promise<GPTConfig | null> {
+export async function getGPTConfig(gptId: string, useServerClient = false): Promise<GPTConfig | null> {
   // Check cache first
   const now = Date.now()
   if (cacheTimestamp > 0 && now - cacheTimestamp < CACHE_DURATION && gptConfigsCache[gptId]) {
@@ -25,7 +26,7 @@ export async function getGPTConfig(gptId: string): Promise<GPTConfig | null> {
   }
 
   try {
-    const supabase = createClient()
+    const supabase = useServerClient ? createServerClient() : createClient()
     const { data, error } = await supabase.from("gpt_configs").select("*").eq("name", gptId).single()
 
     if (error || !data) {
@@ -54,9 +55,9 @@ export async function getGPTConfig(gptId: string): Promise<GPTConfig | null> {
   }
 }
 
-export async function getAllGPTConfigs(): Promise<GPTConfig[]> {
+export async function getAllGPTConfigs(useServerClient = false): Promise<GPTConfig[]> {
   try {
-    const supabase = createClient()
+    const supabase = useServerClient ? createServerClient() : createClient()
     const { data, error } = await supabase.from("gpt_configs").select("*").order("created_at", { ascending: true })
 
     if (error) {
