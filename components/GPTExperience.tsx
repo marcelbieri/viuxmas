@@ -52,17 +52,25 @@ export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
     setCurrentTries((prev) => prev + 1)
 
     try {
+      console.log("[v0] Making API request with config:", { id: config.id, name: config.name })
+
       const response = await fetch("/api/gpt-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [...messages, userMessage].map((m) => ({ role: m.role, content: m.content })),
-          gptId: config.name, // Updated to use database field name
-          systemPrompt: config.system_prompt, // Updated to use database field name
+          gptId: config.id, // Use config.id instead of config.name
+          systemPrompt: config.system_prompt,
         }),
       })
 
-      if (!response.ok) throw new Error("API request failed")
+      console.log("[v0] API response status:", response.status, response.statusText)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("[v0] API error response:", errorText)
+        throw new Error(`API request failed: ${response.status} ${errorText}`)
+      }
 
       const reader = response.body?.getReader()
       if (!reader) throw new Error("No response body")

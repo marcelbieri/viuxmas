@@ -21,7 +21,10 @@ export async function POST(req: Request) {
       return new Response("GPT ID is required", { status: 400 })
     }
 
+    console.log("[v0] Loading GPT config for ID:", gptId)
     const config = await getGPTConfig(gptId, true) // Use server client
+    console.log("[v0] Config loaded:", config ? "SUCCESS" : "FAILED")
+
     if (!config) {
       console.error("[v0] GPT config not found for ID:", gptId)
       return new Response(`GPT configuration not found for ID: ${gptId}`, { status: 404 })
@@ -36,15 +39,20 @@ export async function POST(req: Request) {
 
     console.log("[v0] Making OpenAI API call...")
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "system", content: systemPrompt || config.system_prompt }, ...messages],
-      temperature: 0.7,
-      max_tokens: 500,
-      stream: true,
-    })
-
-    console.log("[v0] OpenAI API call successful, creating stream...")
+    let completion
+    try {
+      completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "system", content: systemPrompt || config.system_prompt }, ...messages],
+        temperature: 0.7,
+        max_tokens: 500,
+        stream: true,
+      })
+      console.log("[v0] OpenAI API call successful, creating stream...")
+    } catch (openaiError) {
+      console.error("[v0] OpenAI API error:", openaiError)
+      return new Response(`OpenAI API error: ${openaiError.message}`, { status: 500 })
+    }
 
     // Create a readable stream for the response
     const stream = new ReadableStream({
