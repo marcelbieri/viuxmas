@@ -1,10 +1,14 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef, useEffect } from "react"
-import { useChat } from "ai/react"
 import type { GPTConfig } from "@/lib/gpt-registry"
+
+interface Message {
+  id: string
+  role: "user" | "assistant"
+  content: string
+}
 
 interface GPTExperienceProps {
   config: GPTConfig
@@ -12,23 +16,17 @@ interface GPTExperienceProps {
 }
 
 export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: "starter",
+      role: "assistant",
+      content: config.starterMessage,
+    },
+  ])
+  const [input, setInput] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
   const [currentTries, setCurrentTries] = useState(0)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: "/api/gpt-chat",
-    body: {
-      gptId: config.id,
-      systemPrompt: config.systemPrompt,
-    },
-    initialMessages: [
-      {
-        id: "starter",
-        role: "assistant",
-        content: config.starterMessage,
-      },
-    ],
-  })
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -38,10 +36,85 @@ export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
     scrollToBottom()
   }, [messages])
 
-  const onSubmit = (e: React.FormEvent) => {
-    if (currentTries >= config.maxTries) return
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!input.trim() || isLoading || currentTries >= config.maxTries) return
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: "user",
+      content: input.trim(),
+    }
+
+    setMessages((prev) => [...prev, userMessage])
+    setInput("")
+    setIsLoading(true)
     setCurrentTries((prev) => prev + 1)
-    handleSubmit(e)
+
+    try {
+      const response = await fetch("/api/gpt-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [...messages, userMessage].map((m) => ({ role: m.role, content: m.content })),
+          gptId: config.id,
+          systemPrompt: config.systemPrompt,
+        }),
+      })
+
+      if (!response.ok) throw new Error("API request failed")
+
+      const reader = response.body?.getReader()
+      if (!reader) throw new Error("No response body")
+
+      let assistantContent = ""
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: "",
+      }
+
+      setMessages((prev) => [...prev, assistantMessage])
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = new TextDecoder().decode(value)
+        const lines = chunk.split("\n")
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6)
+            if (data === "[DONE]") break
+
+            try {
+              const parsed = JSON.parse(data)
+              if (parsed.content) {
+                assistantContent += parsed.content
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === assistantMessage.id ? { ...m, content: assistantContent } : m)),
+                )
+              }
+            } catch (e) {
+              // Ignore parsing errors
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Chat error:", error)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: "Entschuldigung, es gab einen Fehler. Bitte versuche es erneut.",
+        },
+      ])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -89,12 +162,16 @@ export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
         </div>
 
         {/* Input */}
-        <form onSubmit={onSubmit} className="p-4 border-t bg-white">
+        <form onSubmit={handleSubmit} className="p-4 border-t bg-white">
           <div className="flex space-x-2">
             <input
               value={input}
-              onChange={handleInputChange}
-              placeholder={currentTries >= config.maxTries ? "Maximale Versuche erreicht" : "Deine Antwort..."}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={
+                currentTries >= config.maxTries
+                  ? "Maximale Versuche erreicht"
+                  : "Deine Antwort... (Keine persönlichen Daten eingeben)"
+              }
               disabled={isLoading || currentTries >= config.maxTries}
               className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             />
@@ -106,6 +183,7 @@ export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
               {isLoading ? "..." : "Senden"}
             </button>
           </div>
+          <p className="text-xs text-gray-500 mt-2 text-center">⚠️ Keine persönlichen Daten eingeben</p>
           {currentTries >= config.maxTries && (
             <p className="text-sm text-red-600 mt-2 text-center">
               Du hast alle Versuche aufgebraucht. Das GPT wird dir die Lösung verraten! 🎄

@@ -4,6 +4,7 @@ import type React from "react"
 
 import { useEffect, useState } from "react"
 import type { CalendarDoor } from "@/types/calendar"
+import { GPT_REGISTRY, type GPTConfig } from "@/lib/gpt-registry"
 
 export default function AdminPage() {
   const [doors, setDoors] = useState<CalendarDoor[]>([])
@@ -14,6 +15,10 @@ export default function AdminPage() {
   const [password, setPassword] = useState("")
   const [allStories, setAllStories] = useState<any[]>([])
   const [xmasDoorsChildren, setXmasDoorsChildren] = useState<any[]>([])
+  const [activeTab, setActiveTab] = useState<"overview" | "gpts">("overview")
+  const [gpts, setGpts] = useState<GPTConfig[]>([])
+  const [editingGpt, setEditingGpt] = useState<GPTConfig | null>(null)
+  const [showGptForm, setShowGptForm] = useState(false)
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,6 +32,8 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (!isAuthenticated) return
+
+    setGpts(Object.values(GPT_REGISTRY))
 
     async function testStoryblokConnection() {
       try {
@@ -66,6 +73,39 @@ export default function AdminPage() {
     testStoryblokConnection()
   }, [isAuthenticated])
 
+  const handleSaveGpt = (gptData: Partial<GPTConfig>) => {
+    if (editingGpt) {
+      // Update existing GPT
+      const updatedGpts = gpts.map((g) => (g.id === editingGpt.id ? { ...editingGpt, ...gptData } : g))
+      setGpts(updatedGpts)
+      // Note: In a real app, this would save to a database
+      console.log("GPT updated:", { ...editingGpt, ...gptData })
+    } else {
+      // Create new GPT
+      const newGpt: GPTConfig = {
+        id: gptData.id || `gpt-${Date.now()}`,
+        systemPrompt: gptData.systemPrompt || "",
+        starterMessage: gptData.starterMessage || "",
+        maxTries: gptData.maxTries || 3,
+        uiType: gptData.uiType || "chat",
+        language: "de-CH",
+        style: "du",
+        ...gptData,
+      }
+      setGpts([...gpts, newGpt])
+      console.log("GPT created:", newGpt)
+    }
+    setEditingGpt(null)
+    setShowGptForm(false)
+  }
+
+  const handleDeleteGpt = (gptId: string) => {
+    if (confirm("GPT wirklich löschen?")) {
+      setGpts(gpts.filter((g) => g.id !== gptId))
+      console.log("GPT deleted:", gptId)
+    }
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#001327] text-white flex items-center justify-center">
@@ -97,6 +137,25 @@ export default function AdminPage() {
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Storyblok Admin Dashboard</h1>
 
+        <div className="flex space-x-4 mb-8">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === "overview" ? "bg-white text-[#001327]" : "bg-white/20 text-white hover:bg-white/30"
+            }`}
+          >
+            Übersicht
+          </button>
+          <button
+            onClick={() => setActiveTab("gpts")}
+            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === "gpts" ? "bg-white text-[#001327]" : "bg-white/20 text-white hover:bg-white/30"
+            }`}
+          >
+            GPT Verwaltung
+          </button>
+        </div>
+
         <div className="bg-white/10 p-6 rounded-lg mb-8">
           <h2 className="text-xl font-semibold mb-4">Verbindungsstatus</h2>
           {loading ? (
@@ -108,276 +167,281 @@ export default function AdminPage() {
           )}
         </div>
 
-        {!loading && !error && (
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="bg-white/10 p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4">Kalender Übersicht</h2>
-              <div className="space-y-2">
-                <p>
-                  <strong>Anzahl Türchen:</strong> {doors.length}
-                </p>
-                <p>
-                  <strong>Xmas-Doors Folder Seiten:</strong> {xmasDoorsChildren.length}
-                </p>
-                <p>
-                  <strong>Tage verfügbar:</strong> {doors.map((d) => d.day).join(", ")}
-                </p>
-                <p>
-                  <strong>Environment Token:</strong> {rawData?.token_configured ? "✅ Gesetzt" : "❌ Fehlt"}
-                </p>
-                <p>
-                  <strong>API Status:</strong> {rawData?.success ? "✅ OK" : "❌ Fehler"}
-                </p>
-                {rawData?.space_info && (
-                  <>
-                    <p>
-                      <strong>Space Name:</strong> {rawData.space_info.name}
-                    </p>
-                    <p>
-                      <strong>Space ID:</strong> {rawData.space_info.id}
-                    </p>
-                  </>
-                )}
+        {activeTab === "overview" && !loading && !error && (
+          <>
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="bg-white/10 p-6 rounded-lg">
+                <h2 className="text-xl font-semibold mb-4">Kalender Übersicht</h2>
+                <div className="space-y-2">
+                  <p>
+                    <strong>Anzahl Türchen:</strong> {doors.length}
+                  </p>
+                  <p>
+                    <strong>Xmas-Doors Folder Seiten:</strong> {xmasDoorsChildren.length}
+                  </p>
+                  <p>
+                    <strong>Tage verfügbar:</strong> {doors.map((d) => d.day).join(", ")}
+                  </p>
+                  <p>
+                    <strong>Environment Token:</strong> {rawData?.token_configured ? "✅ Gesetzt" : "❌ Fehlt"}
+                  </p>
+                  <p>
+                    <strong>API Status:</strong> {rawData?.success ? "✅ OK" : "❌ Fehler"}
+                  </p>
+                  {rawData?.space_info && (
+                    <>
+                      <p>
+                        <strong>Space Name:</strong> {rawData.space_info.name}
+                      </p>
+                      <p>
+                        <strong>Space ID:</strong> {rawData.space_info.id}
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white/10 p-6 rounded-lg">
+                <h2 className="text-xl font-semibold mb-4">Türchen Details</h2>
+                <div className="max-h-64 overflow-y-auto space-y-2">
+                  {doors.length > 0 ? (
+                    doors.map((door) => (
+                      <div key={door.day} className="bg-white/5 p-3 rounded text-sm">
+                        <strong>Tag {door.day}:</strong> {door.title}
+                        {door.subtitle && <div className="text-white/70">{door.subtitle}</div>}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-white/70">Keine Türchen gefunden</div>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div className="bg-white/10 p-6 rounded-lg">
-              <h2 className="text-xl font-semibold mb-4">Türchen Details</h2>
-              <div className="max-h-64 overflow-y-auto space-y-2">
-                {doors.length > 0 ? (
-                  doors.map((door) => (
-                    <div key={door.day} className="bg-white/5 p-3 rounded text-sm">
-                      <strong>Tag {door.day}:</strong> {door.title}
-                      {door.subtitle && <div className="text-white/70">{door.subtitle}</div>}
+            {!loading && !error && xmasDoorsChildren.length > 0 && (
+              <div className="bg-white/10 p-6 rounded-lg mt-8">
+                <h2 className="text-xl font-semibold mb-4">Xmas-Doors Folder Seiten ({xmasDoorsChildren.length})</h2>
+                <div className="space-y-6">
+                  {xmasDoorsChildren.map((story, index) => (
+                    <div key={story.id || index} className="bg-white/5 p-6 rounded-lg">
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="font-semibold text-lg mb-4 text-blue-300">{story.name || story.slug}</h3>
+                          <p className="text-white/70 text-sm">
+                            {story.id} • {story.full_slug} • {story.content_type}
+                          </p>
+                        </div>
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleDeleteGpt(story.id)}
+                            className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                          >
+                            Löschen
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-medium text-white/90 mb-1">Starter Message:</h4>
+                          <p className="text-white/70 text-sm bg-black/20 p-2 rounded">
+                            {story.content?.starterMessage}
+                          </p>
+                        </div>
+
+                        <div>
+                          <h4 className="font-medium text-white/90 mb-1">System Prompt:</h4>
+                          <p className="text-white/70 text-sm bg-black/20 p-2 rounded max-h-32 overflow-y-auto">
+                            {story.content?.systemPrompt}
+                          </p>
+                        </div>
+                      </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-white/70">Keine Türchen gefunden</div>
-                )}
+                  ))}
+                </div>
               </div>
-            </div>
-          </div>
+            )}
+
+            {!loading && !error && xmasDoorsChildren.length === 0 && (
+              <div className="bg-white/10 p-6 rounded-lg mt-8">
+                <h2 className="text-xl font-semibold mb-4">Hinweis</h2>
+                <p className="text-white/70">
+                  Keine Stories im xmas-doors Folder gefunden. Bitte erstelle Stories im xmas-doors Folder in Storyblok.
+                </p>
+              </div>
+            )}
+          </>
         )}
 
-        {!loading && !error && xmasDoorsChildren.length > 0 && (
-          <div className="bg-white/10 p-6 rounded-lg mt-8">
-            <h2 className="text-xl font-semibold mb-4">Xmas-Doors Folder Seiten ({xmasDoorsChildren.length})</h2>
-            <div className="space-y-6">
-              {xmasDoorsChildren.map((story, index) => (
-                <div key={story.id || index} className="bg-white/5 p-6 rounded-lg">
-                  <h3 className="font-semibold text-lg mb-4 text-blue-300">{story.name || story.slug}</h3>
+        {activeTab === "gpts" && (
+          <div className="space-y-8">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-semibold">GPT Verwaltung</h2>
+              <button
+                onClick={() => {
+                  setEditingGpt(null)
+                  setShowGptForm(true)
+                }}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                + Neues GPT
+              </button>
+            </div>
 
-                  <div className="grid md:grid-cols-2 gap-6 mb-6">
+            {/* GPT List */}
+            <div className="grid gap-6">
+              {gpts.map((gpt) => (
+                <div key={gpt.id} className="bg-white/10 p-6 rounded-lg">
+                  <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h4 className="font-medium text-white/90 mb-2">Story Metadaten</h4>
-                      <div className="text-sm text-white/70 space-y-1">
-                        <p>
-                          <strong>ID:</strong> {story.id}
-                        </p>
-                        <p>
-                          <strong>Slug:</strong> {story.slug}
-                        </p>
-                        <p>
-                          <strong>Full Slug:</strong> {story.full_slug}
-                        </p>
-                        <p>
-                          <strong>Published:</strong> {story.is_published ? "✅ Ja" : "❌ Nein"}
-                        </p>
-                        <p>
-                          <strong>Content Type:</strong> {story.content_type}
-                        </p>
-                        {story.published_at && (
-                          <p>
-                            <strong>Published At:</strong> {new Date(story.published_at).toLocaleDateString("de-DE")}
-                          </p>
-                        )}
-                      </div>
+                      <h3 className="text-xl font-semibold text-white">{gpt.id}</h3>
+                      <p className="text-white/70 text-sm">
+                        {gpt.uiType} • Max {gpt.maxTries} Versuche • {gpt.language}
+                      </p>
+                    </div>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => {
+                          setEditingGpt(gpt)
+                          setShowGptForm(true)
+                        }}
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                      >
+                        Bearbeiten
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGpt(gpt.id)}
+                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                      >
+                        Löschen
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="font-medium text-white/90 mb-1">Starter Message:</h4>
+                      <p className="text-white/70 text-sm bg-black/20 p-2 rounded">{gpt.starterMessage}</p>
                     </div>
 
                     <div>
-                      <h4 className="font-medium text-white/90 mb-2">Content Felder</h4>
-                      {story.content ? (
-                        <div className="text-sm text-white/70 space-y-2">
-                          <p>
-                            <strong>Component:</strong> {story.content.component || "N/A"}
-                          </p>
-                          {Object.entries(story.content).map(([key, value]) => {
-                            if (key === "component" || key === "_uid") return null
-
-                            // Handle arrays (like body, page_meta)
-                            if (Array.isArray(value)) {
-                              return (
-                                <div key={key} className="border-l-2 border-white/20 pl-3">
-                                  <p>
-                                    <strong>{key}:</strong> Array ({value.length} items)
-                                  </p>
-                                  {value.slice(0, 3).map((item, index) => (
-                                    <div key={index} className="ml-4 mt-1 text-xs">
-                                      <strong>Item {index + 1}:</strong>
-                                      {typeof item === "object" && item !== null ? (
-                                        <div className="ml-2">
-                                          {Object.entries(item).map(([subKey, subValue]) => (
-                                            <p key={subKey} className="text-white/60">
-                                              {subKey}:{" "}
-                                              {typeof subValue === "string"
-                                                ? subValue.length > 30
-                                                  ? `${subValue.substring(0, 30)}...`
-                                                  : subValue
-                                                : typeof subValue === "object"
-                                                  ? `[${Array.isArray(subValue) ? "Array" : "Object"}]`
-                                                  : String(subValue)}
-                                            </p>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <span className="text-white/60"> {String(item)}</span>
-                                      )}
-                                    </div>
-                                  ))}
-                                  {value.length > 3 && (
-                                    <p className="ml-4 text-xs text-white/50">... und {value.length - 3} weitere</p>
-                                  )}
-                                </div>
-                              )
-                            }
-
-                            // Handle objects
-                            if (typeof value === "object" && value !== null) {
-                              return (
-                                <div key={key} className="border-l-2 border-white/20 pl-3">
-                                  <p>
-                                    <strong>{key}:</strong> Object
-                                  </p>
-                                  <div className="ml-4 text-xs">
-                                    {Object.entries(value)
-                                      .slice(0, 5)
-                                      .map(([subKey, subValue]) => (
-                                        <p key={subKey} className="text-white/60">
-                                          {subKey}:{" "}
-                                          {typeof subValue === "string"
-                                            ? subValue.length > 30
-                                              ? `${subValue.substring(0, 30)}...`
-                                              : subValue
-                                            : typeof subValue === "object"
-                                              ? `[${Array.isArray(subValue) ? "Array" : "Object"}]`
-                                              : String(subValue)}
-                                        </p>
-                                      ))}
-                                    {Object.keys(value).length > 5 && (
-                                      <p className="text-white/50">
-                                        ... und {Object.keys(value).length - 5} weitere Felder
-                                      </p>
-                                    )}
-                                  </div>
-                                </div>
-                              )
-                            }
-
-                            // Handle simple values
-                            return (
-                              <p key={key}>
-                                <strong>{key}:</strong>{" "}
-                                {typeof value === "string"
-                                  ? value.length > 50
-                                    ? `${value.substring(0, 50)}...`
-                                    : value
-                                  : String(value)}
-                              </p>
-                            )
-                          })}
-
-                          {(story.content.body || story.content.page_meta) && (
-                            <div className="mt-4 p-3 bg-blue-500/20 rounded border border-blue-400/30">
-                              <h5 className="font-medium text-blue-200 mb-2">Wichtige Content-Felder:</h5>
-                              <div className="text-xs space-y-1">
-                                {/* Extract title-like fields from body array */}
-                                {story.content.body &&
-                                  Array.isArray(story.content.body) &&
-                                  story.content.body.map((block, index) => {
-                                    if (block.component === "title" || block.component === "headline") {
-                                      return (
-                                        <p key={`body-${index}`} className="text-green-300">
-                                          <strong>Body Title {index + 1}:</strong> {block.title || block.text || "N/A"}
-                                        </p>
-                                      )
-                                    }
-                                    if (block.title || block.headline || block.text) {
-                                      return (
-                                        <p key={`body-${index}`} className="text-yellow-300">
-                                          <strong>
-                                            {block.component || "Block"} {index + 1}:
-                                          </strong>{" "}
-                                          {block.title || block.headline || block.text}
-                                        </p>
-                                      )
-                                    }
-                                    return null
-                                  })}
-
-                                {/* Extract fields from page_meta */}
-                                {story.content.page_meta &&
-                                  Array.isArray(story.content.page_meta) &&
-                                  story.content.page_meta.map((meta, index) => (
-                                    <div key={`meta-${index}`}>
-                                      {meta.title && (
-                                        <p className="text-green-300">
-                                          <strong>Page Title:</strong> {meta.title}
-                                        </p>
-                                      )}
-                                      {meta.description && (
-                                        <p className="text-blue-300">
-                                          <strong>Page Description:</strong> {meta.description}
-                                        </p>
-                                      )}
-                                    </div>
-                                  ))}
-
-                                {/* Direct content fields */}
-                                {story.content.title && (
-                                  <p className="text-green-300">
-                                    <strong>Direct Title:</strong> {story.content.title}
-                                  </p>
-                                )}
-                                {story.content.subtitle && (
-                                  <p className="text-blue-300">
-                                    <strong>Direct Subtitle:</strong> {story.content.subtitle}
-                                  </p>
-                                )}
-                                {story.content.pre_title && (
-                                  <p className="text-purple-300">
-                                    <strong>Direct Pre Title:</strong> {story.content.pre_title}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-white/50">Keine Content-Daten verfügbar</p>
-                      )}
-                    </div>
-
-                    <div className="mt-6">
-                      <h4 className="font-medium text-white/90 mb-2">Kompletter Body Content (Raw JSON)</h4>
-                      <div className="bg-black/30 p-4 rounded-lg max-h-96 overflow-y-auto">
-                        <pre className="text-xs text-green-300 whitespace-pre-wrap break-words">
-                          {JSON.stringify(story.content, null, 2)}
-                        </pre>
-                      </div>
+                      <h4 className="font-medium text-white/90 mb-1">System Prompt:</h4>
+                      <p className="text-white/70 text-sm bg-black/20 p-2 rounded max-h-32 overflow-y-auto">
+                        {gpt.systemPrompt}
+                      </p>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
 
-        {!loading && !error && xmasDoorsChildren.length === 0 && (
-          <div className="bg-white/10 p-6 rounded-lg mt-8">
-            <h2 className="text-xl font-semibold mb-4">Hinweis</h2>
-            <p className="text-white/70">
-              Keine Stories im xmas-doors Folder gefunden. Bitte erstelle Stories im xmas-doors Folder in Storyblok.
-            </p>
+            {/* GPT Form Modal */}
+            {showGptForm && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4">
+                    {editingGpt ? "GPT bearbeiten" : "Neues GPT erstellen"}
+                  </h3>
+
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      const formData = new FormData(e.currentTarget)
+                      handleSaveGpt({
+                        id: formData.get("id") as string,
+                        starterMessage: formData.get("starterMessage") as string,
+                        systemPrompt: formData.get("systemPrompt") as string,
+                        maxTries: Number.parseInt(formData.get("maxTries") as string),
+                        uiType: formData.get("uiType") as "chat" | "quiz" | "game",
+                      })
+                    }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">GPT ID</label>
+                      <input
+                        name="id"
+                        type="text"
+                        defaultValue={editingGpt?.id || ""}
+                        disabled={!!editingGpt}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                        placeholder="z.B. xmas-smiley"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Starter Message</label>
+                      <input
+                        name="starterMessage"
+                        type="text"
+                        defaultValue={editingGpt?.starterMessage || ""}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Willkommen zum Weihnachts-Rätsel! 🎄"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">System Prompt</label>
+                      <textarea
+                        name="systemPrompt"
+                        rows={8}
+                        defaultValue={editingGpt?.systemPrompt || ""}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Du bist ein freundlicher Assistent..."
+                        required
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Max Versuche</label>
+                        <input
+                          name="maxTries"
+                          type="number"
+                          min="1"
+                          max="10"
+                          defaultValue={editingGpt?.maxTries || 3}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">UI Typ</label>
+                        <select
+                          name="uiType"
+                          defaultValue={editingGpt?.uiType || "chat"}
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          required
+                        >
+                          <option value="chat">Chat</option>
+                          <option value="quiz">Quiz</option>
+                          <option value="game">Game</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end space-x-3 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowGptForm(false)
+                          setEditingGpt(null)
+                        }}
+                        className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                      >
+                        Abbrechen
+                      </button>
+                      <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        {editingGpt ? "Aktualisieren" : "Erstellen"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

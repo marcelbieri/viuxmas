@@ -1,6 +1,9 @@
-import { openai } from "@ai-sdk/openai"
-import { streamText } from "ai"
+import OpenAI from "openai"
 import { GPT_REGISTRY } from "@/lib/gpt-registry"
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+})
 
 export async function POST(req: Request) {
   try {
@@ -13,15 +16,39 @@ export async function POST(req: Request) {
 
     const config = GPT_REGISTRY[gptId]
 
-    const result = await streamText({
-      model: openai("gpt-4o-mini"),
-      system: systemPrompt || config.systemPrompt,
-      messages,
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "system", content: systemPrompt || config.systemPrompt }, ...messages],
       temperature: 0.7,
-      maxTokens: 500,
+      max_tokens: 500,
+      stream: true,
     })
 
-    return result.toDataStreamResponse()
+    // Create a readable stream for the response
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of completion) {
+            const content = chunk.choices[0]?.delta?.content || ""
+            if (content) {
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
+            }
+          }
+          controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"))
+          controller.close()
+        } catch (error) {
+          controller.error(error)
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    })
   } catch (error) {
     console.error("GPT Chat API error:", error)
     return new Response("Internal Server Error", { status: 500 })
