@@ -64,7 +64,31 @@ export async function POST(req: Request) {
 
       console.log("[v0] AI SDK call successful, returning stream...")
 
-      return result.toTextStreamResponse()
+      const encoder = new TextEncoder()
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            for await (const textPart of result.textStream) {
+              const sseData = `data: ${JSON.stringify({ content: textPart })}\n\n`
+              controller.enqueue(encoder.encode(sseData))
+            }
+            // Send completion signal
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"))
+            controller.close()
+          } catch (error) {
+            console.error("[v0] Stream error:", error)
+            controller.error(error)
+          }
+        },
+      })
+
+      return new Response(stream, {
+        headers: {
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      })
     } catch (aiError) {
       console.error("[v0] AI SDK error:", aiError)
       return new Response(`AI SDK error: ${aiError.message}`, { status: 500 })
