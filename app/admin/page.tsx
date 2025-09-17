@@ -1,10 +1,10 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useState } from "react"
 import type { CalendarDoor } from "@/types/calendar"
-import { GPT_REGISTRY, type GPTConfig } from "@/lib/gpt-registry"
+import { getAllGPTConfigs, clearGPTConfigCache, type GPTConfig } from "@/lib/gpt-registry"
+import { createClient } from "@/lib/supabase/client"
 
 export default function AdminPage() {
   const [doors, setDoors] = useState<CalendarDoor[]>([])
@@ -19,6 +19,7 @@ export default function AdminPage() {
   const [gpts, setGpts] = useState<GPTConfig[]>([])
   const [editingGpt, setEditingGpt] = useState<GPTConfig | null>(null)
   const [showGptForm, setShowGptForm] = useState(false)
+  const [gptLoading, setGptLoading] = useState(false)
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,10 +31,22 @@ export default function AdminPage() {
     }
   }
 
+  const loadGPTConfigs = async () => {
+    setGptLoading(true)
+    try {
+      const configs = await getAllGPTConfigs()
+      setGpts(configs)
+    } catch (error) {
+      console.error("Failed to load GPT configs:", error)
+    } finally {
+      setGptLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (!isAuthenticated) return
 
-    setGpts(Object.values(GPT_REGISTRY))
+    loadGPTConfigs()
 
     async function testStoryblokConnection() {
       try {
@@ -73,36 +86,77 @@ export default function AdminPage() {
     testStoryblokConnection()
   }, [isAuthenticated])
 
-  const handleSaveGpt = (gptData: Partial<GPTConfig>) => {
-    if (editingGpt) {
-      // Update existing GPT
-      const updatedGpts = gpts.map((g) => (g.id === editingGpt.id ? { ...editingGpt, ...gptData } : g))
-      setGpts(updatedGpts)
-      // Note: In a real app, this would save to a database
-      console.log("GPT updated:", { ...editingGpt, ...gptData })
-    } else {
-      // Create new GPT
-      const newGpt: GPTConfig = {
-        id: gptData.id || `gpt-${Date.now()}`,
-        systemPrompt: gptData.systemPrompt || "",
-        starterMessage: gptData.starterMessage || "",
-        maxTries: gptData.maxTries || 3,
-        uiType: gptData.uiType || "chat",
-        language: "de-CH",
-        style: "du",
-        ...gptData,
+  const handleSaveGpt = async (gptData: Partial<GPTConfig>) => {
+    setGptLoading(true)
+    const supabase = createClient()
+
+    try {
+      if (editingGpt) {
+        // Update existing GPT
+        const { error } = await supabase
+          .from("gpt_configs")
+          .update({
+            task_description: gptData.task_description,
+            system_prompt: gptData.system_prompt,
+            starter_message: gptData.starter_message,
+            max_tries: gptData.max_tries,
+            ui_type: gptData.ui_type,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", editingGpt.id)
+
+        if (error) throw error
+        console.log("GPT updated successfully")
+      } else {
+        // Create new GPT
+        const { error } = await supabase.from("gpt_configs").insert({
+          name: gptData.name,
+          task_description: gptData.task_description || "",
+          system_prompt: gptData.system_prompt || "",
+          starter_message: gptData.starter_message || "",
+          max_tries: gptData.max_tries || 3,
+          ui_type: gptData.ui_type || "chat",
+        })
+
+        if (error) throw error
+        console.log("GPT created successfully")
       }
-      setGpts([...gpts, newGpt])
-      console.log("GPT created:", newGpt)
+
+      // Clear cache and reload
+      clearGPTConfigCache()
+      await loadGPTConfigs()
+
+      setEditingGpt(null)
+      setShowGptForm(false)
+    } catch (error) {
+      console.error("Failed to save GPT:", error)
+      alert("Fehler beim Speichern des GPTs")
+    } finally {
+      setGptLoading(false)
     }
-    setEditingGpt(null)
-    setShowGptForm(false)
   }
 
-  const handleDeleteGpt = (gptId: string) => {
-    if (confirm("GPT wirklich löschen?")) {
-      setGpts(gpts.filter((g) => g.id !== gptId))
-      console.log("GPT deleted:", gptId)
+  const handleDeleteGpt = async (gptId: string) => {
+    if (!confirm("GPT wirklich löschen?")) return
+
+    setGptLoading(true)
+    const supabase = createClient()
+
+    try {
+      const { error } = await supabase.from("gpt_configs").delete().eq("id", gptId)
+
+      if (error) throw error
+
+      console.log("GPT deleted successfully")
+
+      // Clear cache and reload
+      clearGPTConfigCache()
+      await loadGPTConfigs()
+    } catch (error) {
+      console.error("Failed to delete GPT:", error)
+      alert("Fehler beim Löschen des GPTs")
+    } finally {
+      setGptLoading(false)
     }
   }
 
@@ -282,11 +336,14 @@ export default function AdminPage() {
                   setEditingGpt(null)
                   setShowGptForm(true)
                 }}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                disabled={gptLoading}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               >
                 + Neues GPT
               </button>
             </div>
+
+            {gptLoading && <div className="text-center text-yellow-400">🔄 Lade GPT Konfigurationen...</div>}
 
             {/* GPT List */}
             <div className="grid gap-6">
@@ -294,9 +351,10 @@ export default function AdminPage() {
                 <div key={gpt.id} className="bg-white/10 p-6 rounded-lg">
                   <div className="flex justify-between items-start mb-4">
                     <div>
-                      <h3 className="text-xl font-semibold text-white">{gpt.id}</h3>
-                      <p className="text-white/70 text-sm">
-                        {gpt.uiType} • Max {gpt.maxTries} Versuche • {gpt.language}
+                      <h3 className="text-xl font-semibold text-white">{gpt.name}</h3>
+                      <p className="text-white/70 text-sm">{gpt.task_description}</p>
+                      <p className="text-white/50 text-xs">
+                        {gpt.ui_type} • Max {gpt.max_tries} Versuche
                       </p>
                     </div>
                     <div className="flex space-x-2">
@@ -305,13 +363,15 @@ export default function AdminPage() {
                           setEditingGpt(gpt)
                           setShowGptForm(true)
                         }}
-                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+                        disabled={gptLoading}
+                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
                       >
                         Bearbeiten
                       </button>
                       <button
                         onClick={() => handleDeleteGpt(gpt.id)}
-                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                        disabled={gptLoading}
+                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 disabled:opacity-50"
                       >
                         Löschen
                       </button>
@@ -321,13 +381,13 @@ export default function AdminPage() {
                   <div className="space-y-3">
                     <div>
                       <h4 className="font-medium text-white/90 mb-1">Starter Message:</h4>
-                      <p className="text-white/70 text-sm bg-black/20 p-2 rounded">{gpt.starterMessage}</p>
+                      <p className="text-white/70 text-sm bg-black/20 p-2 rounded">{gpt.starter_message}</p>
                     </div>
 
                     <div>
                       <h4 className="font-medium text-white/90 mb-1">System Prompt:</h4>
                       <p className="text-white/70 text-sm bg-black/20 p-2 rounded max-h-32 overflow-y-auto">
-                        {gpt.systemPrompt}
+                        {gpt.system_prompt}
                       </p>
                     </div>
                   </div>
@@ -348,21 +408,22 @@ export default function AdminPage() {
                       e.preventDefault()
                       const formData = new FormData(e.currentTarget)
                       handleSaveGpt({
-                        id: formData.get("id") as string,
-                        starterMessage: formData.get("starterMessage") as string,
-                        systemPrompt: formData.get("systemPrompt") as string,
-                        maxTries: Number.parseInt(formData.get("maxTries") as string),
-                        uiType: formData.get("uiType") as "chat" | "quiz" | "game",
+                        name: formData.get("name") as string,
+                        task_description: formData.get("task_description") as string,
+                        starter_message: formData.get("starter_message") as string,
+                        system_prompt: formData.get("system_prompt") as string,
+                        max_tries: Number.parseInt(formData.get("max_tries") as string),
+                        ui_type: formData.get("ui_type") as "chat" | "quiz" | "game",
                       })
                     }}
                     className="space-y-4"
                   >
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">GPT ID</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">GPT Name</label>
                       <input
-                        name="id"
+                        name="name"
                         type="text"
-                        defaultValue={editingGpt?.id || ""}
+                        defaultValue={editingGpt?.name || ""}
                         disabled={!!editingGpt}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                         placeholder="z.B. xmas-smiley"
@@ -371,13 +432,25 @@ export default function AdminPage() {
                     </div>
 
                     <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Aufgabe/Beschreibung</label>
+                      <input
+                        name="task_description"
+                        type="text"
+                        defaultValue={editingGpt?.task_description || ""}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="z.B. Weihnachts-Song Emoji-Rätsel"
+                        required
+                      />
+                    </div>
+
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Starter Message</label>
                       <input
-                        name="starterMessage"
+                        name="starter_message"
                         type="text"
-                        defaultValue={editingGpt?.starterMessage || ""}
+                        defaultValue={editingGpt?.starter_message || ""}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Willkommen zum Weihnachts-Rätsel! 🎄"
+                        placeholder="Welchen Song suchen wir? 🎄🔔🎵"
                         required
                       />
                     </div>
@@ -385,9 +458,9 @@ export default function AdminPage() {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">System Prompt</label>
                       <textarea
-                        name="systemPrompt"
+                        name="system_prompt"
                         rows={8}
-                        defaultValue={editingGpt?.systemPrompt || ""}
+                        defaultValue={editingGpt?.system_prompt || ""}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="Du bist ein freundlicher Assistent..."
                         required
@@ -398,11 +471,11 @@ export default function AdminPage() {
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Max Versuche</label>
                         <input
-                          name="maxTries"
+                          name="max_tries"
                           type="number"
                           min="1"
                           max="10"
-                          defaultValue={editingGpt?.maxTries || 3}
+                          defaultValue={editingGpt?.max_tries || 3}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           required
                         />
@@ -411,8 +484,8 @@ export default function AdminPage() {
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">UI Typ</label>
                         <select
-                          name="uiType"
-                          defaultValue={editingGpt?.uiType || "chat"}
+                          name="ui_type"
+                          defaultValue={editingGpt?.ui_type || "chat"}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           required
                         >
@@ -434,8 +507,12 @@ export default function AdminPage() {
                       >
                         Abbrechen
                       </button>
-                      <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                        {editingGpt ? "Aktualisieren" : "Erstellen"}
+                      <button
+                        type="submit"
+                        disabled={gptLoading}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                      >
+                        {gptLoading ? "Speichere..." : editingGpt ? "Aktualisieren" : "Erstellen"}
                       </button>
                     </div>
                   </form>

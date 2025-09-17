@@ -5,7 +5,7 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { CalendarDoor } from "@/types/calendar"
 import ViuLogo from "./ViuLogo"
-import { parseMode, GPT_REGISTRY } from "@/lib/gpt-registry"
+import { parseMode, getGPTConfig, type GPTConfig } from "@/lib/gpt-registry" // Updated imports
 import { GPTExperience } from "./GPTExperience"
 
 interface DoorModalProps {
@@ -33,6 +33,7 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
   const [error, setError] = useState<string | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
   const [mode, setMode] = useState<{ type: "story" | "gpt"; gptId?: string }>({ type: "story" })
+  const [gptConfig, setGptConfig] = useState<GPTConfig | null>(null) // Added state for GPT config
 
   useEffect(() => {
     const fetchDoorStory = async () => {
@@ -46,6 +47,12 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
           setStory(data.story)
           const parsedMode = parseMode(data.story.content?.subtitle)
           setMode(parsedMode)
+
+          if (parsedMode.type === "gpt" && parsedMode.gptId) {
+            const config = await getGPTConfig(parsedMode.gptId)
+            setGptConfig(config)
+          }
+
           window.history.pushState({}, "", `/doors/${slug}`)
         } else {
           setError(data.error || "Türchen nicht gefunden")
@@ -320,8 +327,8 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
                   {getTitle()}
                 </h1>
 
-                {mode.type === "gpt" && mode.gptId && GPT_REGISTRY[mode.gptId] ? (
-                  <GPTExperience config={GPT_REGISTRY[mode.gptId]} doorTitle={getTitle()} />
+                {mode.type === "gpt" && gptConfig ? (
+                  <GPTExperience config={gptConfig} doorTitle={getTitle()} />
                 ) : (
                   <>
                     <div className="w-full max-w-2xl mx-auto">

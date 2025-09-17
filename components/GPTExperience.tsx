@@ -20,7 +20,7 @@ export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
     {
       id: "starter",
       role: "assistant",
-      content: config.starterMessage,
+      content: config.starter_message, // Updated to use database field name
     },
   ])
   const [input, setInput] = useState("")
@@ -38,7 +38,7 @@ export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || isLoading || currentTries >= config.maxTries) return
+    if (!input.trim() || isLoading || currentTries >= config.max_tries) return // Updated to use database field name
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -57,8 +57,8 @@ export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: [...messages, userMessage].map((m) => ({ role: m.role, content: m.content })),
-          gptId: config.id,
-          systemPrompt: config.systemPrompt,
+          gptId: config.name, // Updated to use database field name
+          systemPrompt: config.system_prompt, // Updated to use database field name
         }),
       })
 
@@ -124,7 +124,7 @@ export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
         <div className="bg-gradient-to-r from-red-500 to-green-600 text-white p-4">
           <h2 className="text-xl font-bold text-center">{doorTitle}</h2>
           <p className="text-sm text-center opacity-90 mt-1">
-            Versuche: {currentTries}/{config.maxTries}
+            Versuche: {currentTries}/{config.max_tries} {/* Updated to use database field name */}
           </p>
         </div>
 
@@ -168,23 +168,23 @@ export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={
-                currentTries >= config.maxTries
+                currentTries >= config.max_tries // Updated to use database field name
                   ? "Maximale Versuche erreicht"
                   : "Deine Antwort... (Keine persönlichen Daten eingeben)"
               }
-              disabled={isLoading || currentTries >= config.maxTries}
+              disabled={isLoading || currentTries >= config.max_tries} // Updated to use database field name
               className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
             />
             <button
               type="submit"
-              disabled={isLoading || !input.trim() || currentTries >= config.maxTries}
+              disabled={isLoading || !input.trim() || currentTries >= config.max_tries} // Updated to use database field name
               className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
               {isLoading ? "..." : "Senden"}
             </button>
           </div>
           <p className="text-xs text-gray-500 mt-2 text-center">⚠️ Keine persönlichen Daten eingeben</p>
-          {currentTries >= config.maxTries && (
+          {currentTries >= config.max_tries && ( // Updated to use database field name
             <p className="text-sm text-red-600 mt-2 text-center">
               Du hast alle Versuche aufgebraucht. Das GPT wird dir die Lösung verraten! 🎄
             </p>

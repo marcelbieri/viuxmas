@@ -1,5 +1,5 @@
 import OpenAI from "openai"
-import { GPT_REGISTRY } from "@/lib/gpt-registry"
+import { getGPTConfig } from "@/lib/gpt-registry" // Updated import to use new function
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -9,16 +9,14 @@ export async function POST(req: Request) {
   try {
     const { messages, gptId, systemPrompt } = await req.json()
 
-    // Validate GPT ID
-    if (!gptId || !GPT_REGISTRY[gptId]) {
+    const config = await getGPTConfig(gptId)
+    if (!config) {
       return new Response("Invalid GPT ID", { status: 400 })
     }
 
-    const config = GPT_REGISTRY[gptId]
-
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "system", content: systemPrompt || config.systemPrompt }, ...messages],
+      messages: [{ role: "system", content: systemPrompt || config.system_prompt }, ...messages], // Updated to use database field name
       temperature: 0.7,
       max_tokens: 500,
       stream: true,

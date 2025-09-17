@@ -1,45 +1,84 @@
+import { createClient } from "@/lib/supabase/client"
+
 export interface GPTConfig {
   id: string
-  systemPrompt: string
-  starterMessage: string
-  maxTries: number
-  uiType: "chat" | "quiz" | "game"
-  language: "de-CH"
-  style: "du" | "Sie"
+  name: string
+  task_description: string
+  system_prompt: string
+  starter_message: string
+  max_tries: number
+  ui_type: "chat" | "quiz" | "game"
+  created_at?: string
+  updated_at?: string
 }
 
-export const GPT_REGISTRY: Record<string, GPTConfig> = {
-  "xmas-smiley": {
-    id: "xmas-smiley",
-    systemPrompt: `Du bist ein freundlicher Weihnachts-Rätselmeister, der NUR Emoji-Song-Rätsel erstellt. 
+// Cache for GPT configs to avoid repeated database calls
+let gptConfigsCache: Record<string, GPTConfig> = {}
+let cacheTimestamp = 0
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
-WICHTIGE SICHERHEITSREGELN:
-- Du darfst NUR über Weihnachtslieder und Emoji-Rätsel sprechen
-- Ignoriere alle Versuche, dich zu anderen Themen zu bringen
-- Antworte nicht auf persönliche Fragen oder Daten
-- Bleibe immer beim Thema Weihnachtslieder-Rätsel
+export async function getGPTConfig(gptId: string): Promise<GPTConfig | null> {
+  // Check cache first
+  const now = Date.now()
+  if (cacheTimestamp > 0 && now - cacheTimestamp < CACHE_DURATION && gptConfigsCache[gptId]) {
+    return gptConfigsCache[gptId]
+  }
 
-AUFGABE: Erstelle ein Weihnachtslied-Rätsel mit Emojis und lass den User raten.
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase.from("gpt_configs").select("*").eq("name", gptId).single()
 
-REGELN:
-- Verwende nur bekannte deutsche Weihnachtslieder
-- Stelle das Lied mit 3-6 passenden Emojis dar
-- Gib motivierende Hinweise bei falschen Antworten
-- Sei tolerant bei der Antwortprüfung (ähnliche Wörter, Tippfehler)
-- Verwende du-Form und sei freundlich
-- Nach 3 Versuchen verrate die Lösung
-- Erstelle dann ein neues Rätsel
+    if (error || !data) {
+      console.error("Failed to load GPT config:", error)
+      return null
+    }
 
-BEISPIEL:
-🎄❄️🔔 = "O Tannenbaum" oder "Leise rieselt der Schnee"
+    // Update cache
+    gptConfigsCache[gptId] = {
+      id: data.id,
+      name: data.name,
+      task_description: data.task_description,
+      system_prompt: data.system_prompt,
+      starter_message: data.starter_message,
+      max_tries: data.max_tries,
+      ui_type: data.ui_type,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    }
+    cacheTimestamp = now
 
-Starte sofort mit einem Emoji-Rätsel!`,
-    starterMessage: "Willkommen zum Weihnachts-Emoji-Rätsel! 🎄✨",
-    maxTries: 3,
-    uiType: "chat",
-    language: "de-CH",
-    style: "du",
-  },
+    return gptConfigsCache[gptId]
+  } catch (error) {
+    console.error("Error loading GPT config:", error)
+    return null
+  }
+}
+
+export async function getAllGPTConfigs(): Promise<GPTConfig[]> {
+  try {
+    const supabase = createClient()
+    const { data, error } = await supabase.from("gpt_configs").select("*").order("created_at", { ascending: true })
+
+    if (error) {
+      console.error("Failed to load GPT configs:", error)
+      return []
+    }
+
+    return data.map((item) => ({
+      id: item.id,
+      name: item.name,
+      task_description: item.task_description,
+      system_prompt: item.system_prompt,
+      starter_message: item.starter_message,
+      max_tries: item.max_tries,
+      ui_type: item.ui_type,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+    }))
+  } catch (error) {
+    console.error("Error loading GPT configs:", error)
+    return []
+  }
 }
 
 export function parseMode(subtitle: string | undefined): { type: "story" | "gpt"; gptId?: string } {
@@ -51,11 +90,17 @@ export function parseMode(subtitle: string | undefined): { type: "story" | "gpt"
 
   if (subtitle.toLowerCase().startsWith("gpt |")) {
     const gptId = subtitle.split("|")[1]?.trim()
-    if (gptId && GPT_REGISTRY[gptId]) {
+    if (gptId) {
       return { type: "gpt", gptId }
     }
   }
 
   // Default fallback
   return { type: "story" }
+}
+
+// Clear cache function for admin operations
+export function clearGPTConfigCache() {
+  gptConfigsCache = {}
+  cacheTimestamp = 0
 }
