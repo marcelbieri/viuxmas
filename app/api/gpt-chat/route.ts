@@ -1,3 +1,6 @@
+import { openai } from "@ai-sdk/openai"
+import { streamText } from "ai"
+
 export async function POST(req: Request) {
   console.log("[v0] GPT Chat API called - starting request processing")
 
@@ -48,61 +51,24 @@ export async function POST(req: Request) {
 
     console.log("[v0] GPT config loaded:", config.name, "System prompt length:", config.system_prompt?.length)
 
-    let openai
     try {
-      const OpenAI = (await import("openai")).default
-      openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      })
-      console.log("[v0] OpenAI client initialized successfully")
-    } catch (openaiInitError) {
-      console.error("[v0] Failed to initialize OpenAI client:", openaiInitError)
-      return new Response(`Failed to initialize OpenAI client: ${openaiInitError.message}`, { status: 500 })
-    }
+      console.log("[v0] Making AI SDK streamText call...")
 
-    console.log("[v0] Making OpenAI API call...")
-
-    let completion
-    try {
-      completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "system", content: systemPrompt || config.system_prompt }, ...messages],
+      const result = await streamText({
+        model: openai("gpt-4o-mini"),
+        system: systemPrompt || config.system_prompt,
+        messages: messages,
         temperature: 0.7,
-        max_tokens: 500,
-        stream: true,
+        maxTokens: 500,
       })
-      console.log("[v0] OpenAI API call successful, creating stream...")
-    } catch (openaiError) {
-      console.error("[v0] OpenAI API error:", openaiError)
-      return new Response(`OpenAI API error: ${openaiError.message}`, { status: 500 })
+
+      console.log("[v0] AI SDK call successful, returning stream...")
+
+      return result.toDataStreamResponse()
+    } catch (aiError) {
+      console.error("[v0] AI SDK error:", aiError)
+      return new Response(`AI SDK error: ${aiError.message}`, { status: 500 })
     }
-
-    // Create a readable stream for the response
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of completion) {
-            const content = chunk.choices[0]?.delta?.content || ""
-            if (content) {
-              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ content })}\n\n`))
-            }
-          }
-          controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"))
-          controller.close()
-        } catch (error) {
-          console.error("[v0] Stream error:", error)
-          controller.error(error)
-        }
-      },
-    })
-
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    })
   } catch (error) {
     console.error("[v0] GPT Chat API error:", error)
     console.error("[v0] Error stack:", error.stack)
