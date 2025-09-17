@@ -1,5 +1,6 @@
 import { openai } from "@ai-sdk/openai"
 import { streamText } from "ai"
+import { getGPTConfigServer } from "@/lib/gpt-registry-server"
 
 export async function POST(req: Request) {
   console.log("[v0] GPT Chat API called - starting request processing")
@@ -36,8 +37,7 @@ export async function POST(req: Request) {
     console.log("[v0] Loading GPT config for ID:", gptId)
     let config
     try {
-      const { getGPTConfig } = await import("@/lib/gpt-registry")
-      config = await getGPTConfig(gptId, true) // Use server client
+      config = await getGPTConfigServer(gptId)
       console.log("[v0] Config loaded:", config ? "SUCCESS" : "FAILED")
     } catch (configError) {
       console.error("[v0] Error loading GPT config:", configError)
