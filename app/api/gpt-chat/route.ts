@@ -64,7 +64,7 @@ export async function POST(req: Request) {
 
       console.log("[v0] AI SDK call successful, returning stream...")
 
-      return result.toDataStreamResponse()
+      return result.toTextStreamResponse()
     } catch (aiError) {
       console.error("[v0] AI SDK error:", aiError)
       return new Response(`AI SDK error: ${aiError.message}`, { status: 500 })
