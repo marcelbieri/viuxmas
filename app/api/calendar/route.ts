@@ -27,7 +27,7 @@ export async function GET() {
     const cacheBuster = Date.now()
     const cacheVersion = Math.floor(Date.now() / 1000) // Unix timestamp for cache version
 
-    const baseUrl = "https://api.storyblok.com/v1/cdn/stories"
+    const baseUrl = "https://cdn.storyblok.com/v2/cdn/stories"
     const doorsUrl = `${baseUrl}?token=${token}&version=published&starts_with=xmas-doors&cv=${cacheVersion}&_cb=${cacheBuster}`
 
     console.log("[v0] Calendar API: Fetching xmas-doors from:", doorsUrl.replace(token, "***"))
