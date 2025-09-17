@@ -173,7 +173,7 @@ export function GPTExperience({ config, doorTitle }: GPTExperienceProps) {
                   : "Deine Antwort... (Keine persönlichen Daten eingeben)"
               }
               disabled={isLoading || currentTries >= config.max_tries} // Updated to use database field name
-              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 text-blue-900"
             />
             <button
               type="submit"
