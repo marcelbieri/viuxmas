@@ -5,6 +5,8 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import type { CalendarDoor } from "@/types/calendar"
 import ViuLogo from "./ViuLogo"
+import { parseMode, GPT_REGISTRY } from "@/lib/gpt-registry"
+import { GPTExperience } from "./GPTExperience"
 
 interface DoorModalProps {
   door: CalendarDoor
@@ -30,6 +32,7 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
+  const [mode, setMode] = useState<{ type: "story" | "gpt"; gptId?: string }>({ type: "story" })
 
   useEffect(() => {
     const fetchDoorStory = async () => {
@@ -41,6 +44,8 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
 
         if (data.success && data.story) {
           setStory(data.story)
+          const parsedMode = parseMode(data.story.content?.subtitle)
+          setMode(parsedMode)
           window.history.pushState({}, "", `/doors/${slug}`)
         } else {
           setError(data.error || "Türchen nicht gefunden")
@@ -109,13 +114,10 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
 
     const searchForImage = (items: any[]): any => {
       for (const item of items) {
-        // Check if this item has image directly
         if (item.image?.filename) {
           console.log("[v0] Found image in item:", item)
           return item.image
         }
-
-        // If this item has a content array, search recursively
         if (item.content && Array.isArray(item.content)) {
           const nestedImage = searchForImage(item.content)
           if (nestedImage) {
@@ -139,13 +141,10 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
 
     const searchForRichText = (items: any[]): any => {
       for (const item of items) {
-        // Check if this item has richtext directly
         if (item.richtext) {
           console.log("[v0] Found richtext in item:", item)
           return item.richtext
         }
-
-        // If this item has a content array, search recursively
         if (item.content && Array.isArray(item.content)) {
           const nestedRichText = searchForRichText(item.content)
           if (nestedRichText) {
@@ -175,7 +174,6 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
 
         const level = block.attrs.level
 
-        // H1 = black, 4rem (auto-scaling on mobile), right-aligned
         if (level === 1) {
           return (
             <h1 key={index} className="text-4xl md:text-[4rem] font-black text-black text-right mb-6 leading-tight">
@@ -184,7 +182,6 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
           )
         }
 
-        // H2 = black, 3rem (auto-scaling on mobile), right-aligned
         if (level === 2) {
           return (
             <h2 key={index} className="text-3xl md:text-[3rem] font-black text-black text-right mb-5 leading-tight">
@@ -193,7 +190,6 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
           )
         }
 
-        // H3 = black, 2rem (auto-scaling on mobile), right-aligned
         if (level === 3) {
           return (
             <h3 key={index} className="text-2xl md:text-[2rem] font-black text-black text-right mb-4 leading-tight">
@@ -202,7 +198,6 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
           )
         }
 
-        // Fallback for other heading levels
         return (
           <h4 key={index} className="text-xl md:text-2xl font-black text-black text-right mb-4 leading-tight">
             {text}
@@ -234,13 +229,10 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
 
     const searchForLinkList = (items: any[]): any => {
       for (const item of items) {
-        // Check if this item is a link_list component
         if (item.component === "link_list") {
           console.log("[v0] Found link_list in item:", item)
           return item
         }
-
-        // If this item has a content array, search recursively
         if (item.content && Array.isArray(item.content)) {
           const nestedLinkList = searchForLinkList(item.content)
           if (nestedLinkList) {
@@ -328,44 +320,52 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
                   {getTitle()}
                 </h1>
 
-                <div className="w-full max-w-2xl mx-auto">
-                  {(() => {
-                    const doorImage = getDoorImage()
-                    return doorImage?.filename ? (
-                      <div className="aspect-video rounded-lg overflow-hidden">
-                        <img
-                          src={doorImage.filename || "/placeholder.svg"}
-                          alt={
-                            doorImage.alt ||
-                            story?.content?.body?.find((item: any) => item.hasOwnProperty("door"))?.alt ||
-                            "Türchen Bild"
-                          }
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
-                        <span className="text-gray-400">Bild wird hier angezeigt</span>
-                      </div>
-                    )
-                  })()}
-                </div>
+                {mode.type === "gpt" && mode.gptId && GPT_REGISTRY[mode.gptId] ? (
+                  <GPTExperience config={GPT_REGISTRY[mode.gptId]} doorTitle={getTitle()} />
+                ) : (
+                  <>
+                    <div className="w-full max-w-2xl mx-auto">
+                      {(() => {
+                        const doorImage = getDoorImage()
+                        return doorImage?.filename ? (
+                          <div className="aspect-video rounded-lg overflow-hidden">
+                            <img
+                              src={doorImage.filename || "/placeholder.svg"}
+                              alt={
+                                doorImage.alt ||
+                                story?.content?.body?.find((item: any) => item.hasOwnProperty("door"))?.alt ||
+                                "Türchen Bild"
+                              }
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div className="aspect-video bg-gray-100 rounded-lg flex items-center justify-center">
+                            <span className="text-gray-400">Bild wird hier angezeigt</span>
+                          </div>
+                        )
+                      })()}
+                    </div>
 
-                {(() => {
-                  const richTextContent = getRichTextContent()
-                  return richTextContent ? (
-                    <div className="max-w-2xl mx-auto text-left">{renderRichText(richTextContent)}</div>
-                  ) : null
-                })()}
+                    {(() => {
+                      const richTextContent = getRichTextContent()
+                      return richTextContent ? (
+                        <div className="max-w-2xl mx-auto text-left">{renderRichText(richTextContent)}</div>
+                      ) : null
+                    })()}
 
-                {story?.content?.description && !getRichTextContent() && (
-                  <p className="text-lg text-gray-700 max-w-2xl mx-auto leading-relaxed">{story.content.description}</p>
+                    {story?.content?.description && !getRichTextContent() && (
+                      <p className="text-lg text-gray-700 max-w-2xl mx-auto leading-relaxed">
+                        {story.content.description}
+                      </p>
+                    )}
+
+                    {(() => {
+                      const linkListContent = getLinkList()
+                      return linkListContent ? renderLinkList(linkListContent) : null
+                    })()}
+                  </>
                 )}
-
-                {(() => {
-                  const linkListContent = getLinkList()
-                  return linkListContent ? renderLinkList(linkListContent) : null
-                })()}
 
                 {story?.content && (
                   <div className="mt-12 w-full max-w-4xl mx-auto space-y-6">
@@ -378,6 +378,13 @@ export function DoorModal({ door, onClose }: DoorModalProps) {
                           Extrahierte Felder (wie sie im Modal verwendet werden):
                         </h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                          <div className="bg-white p-3 rounded border">
+                            <strong className="text-blue-600">Mode:</strong>
+                            <div className="mt-1 text-gray-600">
+                              {mode.type === "gpt" ? `GPT: ${mode.gptId}` : "Story"}
+                            </div>
+                          </div>
+
                           <div className="bg-white p-3 rounded border">
                             <strong className="text-blue-600">getTitle():</strong>
                             <div className="mt-1 text-gray-600">{getTitle()}</div>
