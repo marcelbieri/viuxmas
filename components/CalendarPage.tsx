@@ -17,6 +17,8 @@ export function CalendarPage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedDoor, setSelectedDoor] = useState<CalendarDoor | null>(null)
 
+  const doorSlug = searchParams.get("door")
+
   useEffect(() => {
     const handlePopState = () => {
       setSelectedDoor(null)
@@ -32,7 +34,6 @@ export function CalendarPage() {
         const calendarData = await fetchCalendar()
         setDoors(calendarData)
 
-        const doorSlug = searchParams.get("door")
         if (doorSlug && calendarData.length > 0) {
           const door = calendarData.find((d) => d.slug === doorSlug)
           if (door) {
@@ -47,7 +48,7 @@ export function CalendarPage() {
     }
 
     loadCalendar()
-  }, [searchParams])
+  }, [doorSlug])
 
   const handleDoorClick = (door: CalendarDoor) => {
     setSelectedDoor(door)
