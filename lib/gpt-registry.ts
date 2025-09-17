@@ -28,7 +28,7 @@ export async function getGPTConfig(gptId: string, useServerClient = false): Prom
 
   try {
     console.log("[v0] Loading GPT config from database for:", gptId, "useServerClient:", useServerClient)
-    const supabase = useServerClient ? createServerClient() : createClient()
+    const supabase = useServerClient ? await createServerClient() : createClient()
 
     console.log("[v0] Querying gpt_configs table...")
     const { data, error } = await supabase.from("gpt_configs").select("*").eq("name", gptId).single()
@@ -75,7 +75,7 @@ export async function getGPTConfig(gptId: string, useServerClient = false): Prom
 
 export async function getAllGPTConfigs(useServerClient = false): Promise<GPTConfig[]> {
   try {
-    const supabase = useServerClient ? createServerClient() : createClient()
+    const supabase = useServerClient ? await createServerClient() : createClient()
     const { data, error } = await supabase.from("gpt_configs").select("*").order("created_at", { ascending: true })
 
     if (error) {
